@@ -63,6 +63,19 @@
         cursor: move;
         touch-action: none;
       }
+      .subtitle-marker {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        padding: 6px 10px;
+        border: 1px solid rgba(126,231,135,0.9);
+        border-radius: 8px;
+        background: rgba(126,231,135,0.2);
+        color: white;
+        font-size: 12px;
+        cursor: move;
+        touch-action: none;
+        user-select: none;
+      }
       .controls {
         display: grid;
         gap: 12px;
@@ -103,6 +116,7 @@
         <div class="preview-box" id="preview-box">
           <img id="preview-image" src="https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=900&q=80" alt="preview" />
           <div class="selection" id="selection-box"></div>
+          <div class="subtitle-marker" id="subtitle-marker">Subtitle</div>
         </div>
 
         <div class="controls">
@@ -121,6 +135,7 @@
     <script>
       const previewBox = document.getElementById('preview-box');
       const selectionBox = document.getElementById('selection-box');
+      const subtitleMarker = document.getElementById('subtitle-marker');
       const previewImage = document.getElementById('preview-image');
       const submitBtn = document.getElementById('submit');
       const resetBtn = document.getElementById('reset');
@@ -142,6 +157,8 @@
         selectionBox.style.top = `${top}px`;
         selectionBox.style.width = `${width}px`;
         selectionBox.style.height = `${height}px`;
+        subtitleMarker.style.left = `${subtitle.x * rect.width}px`;
+        subtitleMarker.style.top = `${subtitle.y * rect.height}px`;
       }
 
       function applyCenterBlur() {
@@ -179,6 +196,22 @@
 
       selectionBox.addEventListener('pointerup', () => {
         dragging = false;
+      });
+
+      let draggingSubtitle = false;
+      subtitleMarker.addEventListener('pointerdown', (event) => {
+        draggingSubtitle = true;
+        subtitleMarker.setPointerCapture(event.pointerId);
+      });
+      subtitleMarker.addEventListener('pointermove', (event) => {
+        if (!draggingSubtitle) return;
+        const rect = previewBox.getBoundingClientRect();
+        subtitle.x = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+        subtitle.y = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
+        renderSelection();
+      });
+      subtitleMarker.addEventListener('pointerup', () => {
+        draggingSubtitle = false;
       });
 
       centerBlurBtn.addEventListener('click', applyCenterBlur);
