@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+venv/
+__pycache__/
+*.py[cod]
+downloads/
+data/*.json
+telegram-bot-api-data/
+.pytest_cache/
+.idea/
+.vscode/
