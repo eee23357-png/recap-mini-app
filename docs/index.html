@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Recap Mini App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
       :root {
         --bg: #0d1117;
@@ -58,7 +59,9 @@
         border: 2px solid rgba(255,255,255,0.8);
         background: rgba(79, 140, 255, 0.18);
         box-shadow: inset 0 0 0 9999px rgba(79,140,255,0.08);
-        pointer-events: none;
+        pointer-events: auto;
+        cursor: move;
+        touch-action: none;
       }
       .controls {
         display: grid;
@@ -126,6 +129,8 @@
 
       let box = { x: 0.38, y: 0.42, w: 0.26, h: 0.18 };
       let subtitle = { x: 0.5, y: 0.88 };
+      let dragging = false;
+      let dragOffset = { x: 0, y: 0 };
 
       function renderSelection() {
         const rect = previewBox.getBoundingClientRect();
@@ -153,6 +158,28 @@
         subtitle = { x: 0.5, y: 0.85 };
         renderSelection();
       }
+
+      selectionBox.addEventListener('pointerdown', (event) => {
+        const rect = previewBox.getBoundingClientRect();
+        dragging = true;
+        dragOffset = {
+          x: event.clientX - (rect.left + box.x * rect.width),
+          y: event.clientY - (rect.top + box.y * rect.height),
+        };
+        selectionBox.setPointerCapture(event.pointerId);
+      });
+
+      selectionBox.addEventListener('pointermove', (event) => {
+        if (!dragging) return;
+        const rect = previewBox.getBoundingClientRect();
+        box.x = Math.max(0, Math.min(1 - box.w, (event.clientX - rect.left - dragOffset.x) / rect.width));
+        box.y = Math.max(0, Math.min(1 - box.h, (event.clientY - rect.top - dragOffset.y) / rect.height));
+        renderSelection();
+      });
+
+      selectionBox.addEventListener('pointerup', () => {
+        dragging = false;
+      });
 
       centerBlurBtn.addEventListener('click', applyCenterBlur);
       bottomSubtitleBtn.addEventListener('click', applyBottomSubtitle);
