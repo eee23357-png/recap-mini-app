@@ -77,16 +77,26 @@
       }
       .subtitle-marker {
         position: absolute;
+        border: 2px solid rgba(126,231,135,0.95);
+        background: rgba(126,231,135,0.2);
+        box-shadow: inset 0 0 0 9999px rgba(126,231,135,0.06);
+        cursor: move;
+        touch-action: none;
+        user-select: none;
+      }
+      .subtitle-marker::before {
+        content: 'Subtitle';
+        position: absolute;
+        left: 50%;
+        top: 50%;
         transform: translate(-50%, -50%);
-        padding: 6px 10px;
+        padding: 4px 8px;
         border: 1px solid rgba(126,231,135,0.9);
         border-radius: 8px;
         background: rgba(126,231,135,0.2);
         color: white;
         font-size: 12px;
-        cursor: move;
-        touch-action: none;
-        user-select: none;
+        white-space: nowrap;
       }
       .controls {
         display: grid;
@@ -145,7 +155,7 @@
         <div class="preview-box" id="preview-box">
           <video id="preview-video" controls muted playsinline></video>
           <div class="selection" id="selection-box"></div>
-          <div class="subtitle-marker" id="subtitle-marker">Subtitle</div>
+          <div class="subtitle-marker" id="subtitle-marker"></div>
         </div>
 
         <div class="controls">
@@ -157,9 +167,11 @@
             <button id="bottom-subtitle" class="secondary">Bottom subtitle</button>
           </div>
           <div class="row">
-            <button id="submit">Submit</button>
+            <button id="save">Save</button>
+            <button id="done">Done</button>
             <button id="reset" class="secondary">Reset</button>
           </div>
+          <div class="meta" id="save-status">Not saved yet</div>
         </div>
       </div>
     </div>
@@ -170,13 +182,18 @@
       const subtitleMarker = document.getElementById('subtitle-marker');
       const previewVideo = document.getElementById('preview-video');
       const videoFile = document.getElementById('video-file');
-      const submitBtn = document.getElementById('submit');
+      const saveBtn = document.getElementById('save');
+      const doneBtn = document.getElementById('done');
+      const saveStatus = document.getElementById('save-status');
       const resetBtn = document.getElementById('reset');
       const centerBlurBtn = document.getElementById('center-blur');
       const bottomSubtitleBtn = document.getElementById('bottom-subtitle');
       const resizeHandle = document.createElement('div');
       resizeHandle.className = 'resize-handle';
       selectionBox.appendChild(resizeHandle);
+      const subtitleResizeHandle = document.createElement('div');
+      subtitleResizeHandle.className = 'resize-handle';
+      subtitleMarker.appendChild(subtitleResizeHandle);
       const colorInputs = {
         brightness: document.getElementById('brightness'),
         contrast: document.getElementById('contrast'),
@@ -184,7 +201,7 @@
       };
 
       let box = { x: 0.38, y: 0.42, w: 0.26, h: 0.18 };
-      let subtitle = { x: 0.5, y: 0.88 };
+      let subtitleBox = { x: 0.25, y: 0.82, w: 0.5, h: 0.08 };
       let dragging = false;
       let dragOffset = { x: 0, y: 0 };
       let resizing = false;
@@ -209,8 +226,10 @@
         selectionBox.style.top = `${top}px`;
         selectionBox.style.width = `${width}px`;
         selectionBox.style.height = `${height}px`;
-        subtitleMarker.style.left = `${subtitle.x * rect.width}px`;
-        subtitleMarker.style.top = `${subtitle.y * rect.height}px`;
+        subtitleMarker.style.left = `${subtitleBox.x * rect.width}px`;
+        subtitleMarker.style.top = `${subtitleBox.y * rect.height}px`;
+        subtitleMarker.style.width = `${subtitleBox.w * rect.width}px`;
+        subtitleMarker.style.height = `${subtitleBox.h * rect.height}px`;
       }
 
       function applyCenterBlur() {
@@ -219,12 +238,13 @@
       }
 
       function applyBottomSubtitle() {
-        subtitle = { x: 0.5, y: 0.85 };
+        subtitleBox = { x: 0.25, y: 0.85, w: 0.5, h: 0.08 };
+        renderSelection();
       }
 
       function resetPosition() {
         box = { x: 0.38, y: 0.42, w: 0.26, h: 0.18 };
-        subtitle = { x: 0.5, y: 0.85 };
+        subtitleBox = { x: 0.25, y: 0.85, w: 0.5, h: 0.08 };
         renderSelection();
       }
 
@@ -270,22 +290,70 @@
       let draggingSubtitle = false;
       subtitleMarker.addEventListener('pointerdown', (event) => {
         draggingSubtitle = true;
+        const rect = previewBox.getBoundingClientRect();
+        subtitleMarker.dataset.offsetX = event.clientX - (rect.left + subtitleBox.x * rect.width);
+        subtitleMarker.dataset.offsetY = event.clientY - (rect.top + subtitleBox.y * rect.height);
         subtitleMarker.setPointerCapture(event.pointerId);
       });
       subtitleMarker.addEventListener('pointermove', (event) => {
         if (!draggingSubtitle) return;
         const rect = previewBox.getBoundingClientRect();
-        subtitle.x = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
-        subtitle.y = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
+        const offsetX = Number(subtitleMarker.dataset.offsetX || 0);
+        const offsetY = Number(subtitleMarker.dataset.offsetY || 0);
+        subtitleBox.x = Math.max(0, Math.min(1 - subtitleBox.w, (event.clientX - rect.left - offsetX) / rect.width));
+        subtitleBox.y = Math.max(0, Math.min(1 - subtitleBox.h, (event.clientY - rect.top - offsetY) / rect.height));
         renderSelection();
       });
       subtitleMarker.addEventListener('pointerup', () => {
         draggingSubtitle = false;
       });
 
+      let resizingSubtitle = false;
+      subtitleResizeHandle.addEventListener('pointerdown', (event) => {
+        event.stopPropagation();
+        resizingSubtitle = true;
+        subtitleResizeHandle.setPointerCapture(event.pointerId);
+      });
+      subtitleResizeHandle.addEventListener('pointermove', (event) => {
+        if (!resizingSubtitle) return;
+        const rect = previewBox.getBoundingClientRect();
+        subtitleBox.w = Math.max(0.2, Math.min(1 - subtitleBox.x, (event.clientX - rect.left) / rect.width - subtitleBox.x));
+        subtitleBox.h = Math.max(0.04, Math.min(0.3, (event.clientY - rect.top) / rect.height - subtitleBox.y));
+        renderSelection();
+      });
+      subtitleResizeHandle.addEventListener('pointerup', () => {
+        resizingSubtitle = false;
+      });
+
+      function buildPayload() {
+        return {
+          action: 'miniapp_submit',
+          blur: box,
+          subtitle: {
+            x: subtitleBox.x + subtitleBox.w / 2,
+            y: subtitleBox.y + subtitleBox.h / 2,
+          },
+          subtitle_scale: Math.max(0.5, Math.min(2.5, subtitleBox.h / 0.08)),
+          color: {
+            brightness: Number(colorInputs.brightness.value),
+            contrast: Number(colorInputs.contrast.value),
+            saturation: Number(colorInputs.saturation.value),
+          },
+          ts: Date.now(),
+        };
+      }
+
+      function saveSettings() {
+        const payload = buildPayload();
+        localStorage.setItem('recap-mini-app-settings', JSON.stringify(payload));
+        saveStatus.textContent = 'Saved ✓ You can press Done now.';
+        saveStatus.style.color = 'var(--accent-2)';
+      }
+
       centerBlurBtn.addEventListener('click', applyCenterBlur);
       bottomSubtitleBtn.addEventListener('click', applyBottomSubtitle);
       resetBtn.addEventListener('click', resetPosition);
+      saveBtn.addEventListener('click', saveSettings);
       Object.values(colorInputs).forEach((input) => input.addEventListener('input', renderColor));
       videoFile.addEventListener('change', () => {
         const file = videoFile.files && videoFile.files[0];
@@ -299,18 +367,9 @@
       renderSelection();
       renderColor();
 
-      submitBtn.addEventListener('click', () => {
-        const payload = {
-          action: 'miniapp_submit',
-          blur: box,
-          subtitle: subtitle,
-          color: {
-            brightness: Number(colorInputs.brightness.value),
-            contrast: Number(colorInputs.contrast.value),
-            saturation: Number(colorInputs.saturation.value),
-          },
-          ts: Date.now(),
-        };
+      doneBtn.addEventListener('click', () => {
+        const payload = buildPayload();
+        localStorage.setItem('recap-mini-app-settings', JSON.stringify(payload));
 
         if (window.Telegram && window.Telegram.WebApp) {
           const tg = window.Telegram.WebApp;
