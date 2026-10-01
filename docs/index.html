@@ -1,3 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Mini Recap Editor</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root { --bg:#0e141b; --panel:#17212b; --line:#2b3a48; --text:#edf5fb; --muted:#9fb0bf; --accent:#4f9cff; }
+    * { box-sizing:border-box; }
+    body { margin:0; padding:14px; background:var(--bg); color:var(--text); font:14px system-ui,sans-serif; }
+    .app { width:min(100%,760px); margin:auto; }
+    .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:12px; }
+    h1 { font-size:22px; margin:0 0 4px; } h2 { font-size:16px; margin:0 0 12px; }
+    .muted { color:var(--muted); font-size:12px; }
+    .grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+    label { display:grid; gap:5px; color:var(--muted); font-size:12px; }
+    select,input[type=file],input[type=range] { width:100%; }
+    select { background:#0d151d; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:9px; }
+    .preview { position:relative; width:min(100%,420px); aspect-ratio:9/16; margin:12px auto; background:#081019; border:1px solid var(--line); overflow:hidden; }
+    video { width:100%; height:100%; object-fit:contain; display:block; }
+    .box { position:absolute; border:2px solid; touch-action:none; user-select:none; cursor:move; }
+    #blur-box { border-color:#62a8ff; background:#62a8ff22; }
+    #subtitle-box { border-color:#7ee787; background:#7ee78722; }
+    .handle { position:absolute; right:-8px; bottom:-8px; width:16px; height:16px; border-radius:50%; background:#fff; border:2px solid currentColor; cursor:nwse-resize; touch-action:none; }
+    #blur-box .handle { color:#62a8ff; } #subtitle-box .handle { color:#7ee787; }
+    .actions { display:flex; gap:8px; flex-wrap:wrap; }
+    button { border:0; border-radius:8px; padding:10px 14px; color:#fff; background:var(--accent); font-weight:700; }
+    button.secondary { background:#2a3947; } button.saved { background:#238636; }
+    output { color:var(--text); }
+  </style>
+</head>
+<body>
+<main class="app">
+  <section class="panel">
+    <h1>🧩 Mini Recap Editor</h1>
+    <div class="muted">ဒီ Mini App က Movie Recap အဟောင်းနဲ့ သီးခြားပါ။ Settings သိမ်းပြီး video ကို Bot chat ထဲပို့ပါ။</div>
+  </section>
+
+  <section class="panel">
+    <h2>Video Preview</h2>
+    <input id="video-file" type="file" accept="video/*">
+    <div class="preview" id="preview">
+      <video id="video" controls muted playsinline></video>
+      <div class="box" id="blur-box"><span class="handle"></span></div>
+      <div class="box" id="subtitle-box"><span class="handle"></span></div>
+    </div>
+    <div class="muted">အပြာ box = Blur, အစိမ်း box = Subtitle. Box ကို drag လုပ်ပြီး corner ကိုဆွဲကာ အရွယ်ပြောင်းပါ။</div>
+  </section>
+
+  <section class="panel">
+    <h2>Recap Settings</h2>
+    <div class="grid">
+      <label>Narration language<select id="language"><option value="mm">Burmese</option><option value="en">English</option><option value="th">Thai</option><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option><option value="vi">Vietnamese</option><option value="id">Indonesian</option><option value="hi">Hindi</option><option value="es">Spanish</option></select></label>
+      <label>Subtitle language<select id="subtitle"><option value="off">No subtitle</option><option value="mm">Burmese</option><option value="en">English</option><option value="th">Thai</option><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option><option value="vi">Vietnamese</option><option value="id">Indonesian</option><option value="hi">Hindi</option><option value="es">Spanish</option></select></label>
+      <label>Script style<select id="style"><option value="neutral">Neutral</option><option value="dramatic">Dramatic</option><option value="comedic">Comedy</option><option value="adventure">Adventure</option><option value="horror">Horror</option><option value="action">Action</option><option value="romance">Romance</option><option value="documentary">Documentary</option></select></label>
+      <label>TTS engine<select id="engine"><option value="edge">Edge TTS</option><option value="gemini">Gemini TTS</option></select></label>
+      <label>Voice<select id="gender"><option value="female">Female</option><option value="male">Male</option></select></label>
+      <label>Voice pitch<select id="pitch"><option value="normal">Normal</option><option value="soft">Soft</option><option value="deep">Deep</option><option value="bright">Bright</option></select></label>
+      <label>Original audio<select id="audio"><option value="mixfixed">Mix</option><option value="mixducking">Smart ducking</option><option value="replace">Replace</option></select></label>
+      <label>Recap length<select id="length"><option value="full">Full video</option><option value="highlight">AI highlights</option></select></label>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Custom Video Colour</h2>
+    <div class="grid">
+      <label>Brightness <input id="brightness" type="range" min="-100" max="100" value="0"><output id="brightness-value">0</output></label>
+      <label>Contrast <input id="contrast" type="range" min="-100" max="100" value="0"><output id="contrast-value">0</output></label>
+      <label>Saturation <input id="saturation" type="range" min="-100" max="100" value="0"><output id="saturation-value">0</output></label>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="actions"><button id="save">Save</button><button id="done">Done / Video ပို့မယ်</button><button class="secondary" id="reset">Reset</button></div>
+    <p class="muted" id="status">Not saved yet</p>
+  </section>
+</main>
+<script>
+  const $ = id => document.getElementById(id);
+  const video = $('video'), preview = $('preview'), fileInput = $('video-file');
+  const blurBox = $('blur-box'), subtitleBox = $('subtitle-box');
+  const colors = { brightness:$('brightness'), contrast:$('contrast'), saturation:$('saturation') };
+  let blur = {x:.36,y:.42,w:.28,h:.18}, subtitle = {x:.20,y:.82,w:.60,h:.10};
+  const clamp = (v,min,max) => Math.max(min,Math.min(max,v));
+  function draw() {
+    const r=preview.getBoundingClientRect();
+    for (const [el,b] of [[blurBox,blur],[subtitleBox,subtitle]]) { el.style.left=`${b.x*r.width}px`; el.style.top=`${b.y*r.height}px`; el.style.width=`${b.w*r.width}px`; el.style.height=`${b.h*r.height}px`; }
+    const b=Number(colors.brightness.value), c=100+Number(colors.contrast.value), s=100+Number(colors.saturation.value);
+    video.style.filter=`brightness(${100+b}%) contrast(${c}%) saturate(${s}%)`;
+    for (const [name,input] of Object.entries(colors)) $(`${name}-value`).value=input.value;
+  }
+  function bindBox(el, box) {
+    let mode=null, start=null;
+    const handle=el.querySelector('.handle');
+    el.addEventListener('pointerdown', e => { if(e.target===handle) return; const r=preview.getBoundingClientRect(); mode='move'; start={x:e.clientX,y:e.clientY,box:{...box},r}; el.setPointerCapture(e.pointerId); });
+    el.addEventListener('pointermove', e => { if(mode!=='move') return; box.x=clamp(start.box.x+(e.clientX-start.x)/start.r.width,0,1-box.w); box.y=clamp(start.box.y+(e.clientY-start.y)/start.r.height,0,1-box.h); draw(); });
+    el.addEventListener('pointerup', () => mode=null);
+    handle.addEventListener('pointerdown', e => { e.stopPropagation(); const r=preview.getBoundingClientRect(); mode='resize'; start={x:e.clientX,y:e.clientY,box:{...box},r}; handle.setPointerCapture(e.pointerId); });
+    handle.addEventListener('pointermove', e => { if(mode!=='resize') return; box.w=clamp(start.box.w+(e.clientX-start.x)/start.r.width,.08,1-box.x); box.h=clamp(start.box.h+(e.clientY-start.y)/start.r.height,.04,1-box.y); draw(); });
+    handle.addEventListener('pointerup', () => mode=null);
+  }
+  bindBox(blurBox,blur); bindBox(subtitleBox,subtitle);
+  fileInput.addEventListener('change', () => { const f=fileInput.files?.[0]; if(!f)return; if(video.src)URL.revokeObjectURL(video.src); video.src=URL.createObjectURL(f); video.load(); });
+  Object.values(colors).forEach(i=>i.addEventListener('input',draw)); addEventListener('resize',draw);
+  function payload() { return { action:'mini_recap_settings', length:$('length').value, language:$('language').value, subtitle_mode:$('subtitle').value, style:$('style').value, engine:$('engine').value, gender:$('gender').value, pitch:$('pitch').value, audio_mode:$('audio').value, burn_in:$('subtitle').value!=='off', srt_file:false, blur:blur, subtitle:{x:subtitle.x+subtitle.w/2,y:subtitle.y+subtitle.h/2}, subtitle_scale:clamp(subtitle.h/.10,.5,2.5), color:{brightness:Number(colors.brightness.value),contrast:Number(colors.contrast.value),saturation:Number(colors.saturation.value)}, thumbnail_wanted:true, speed_limit:true, fade_transition:true, ts:Date.now()}; }
+  function save() { localStorage.setItem('mini-recap-settings',JSON.stringify(payload())); $('status').textContent='Saved ✓'; $('status').style.color='#7ee787'; $('save').classList.add('saved'); }
+  $('save').addEventListener('click',save); $('reset').addEventListener('click',()=>location.reload());
+  $('done').addEventListener('click',()=>{ const p=payload(); localStorage.setItem('mini-recap-settings',JSON.stringify(p)); if(window.Telegram?.WebApp){ Telegram.WebApp.sendData(JSON.stringify(p)); Telegram.WebApp.close(); } else { $('status').textContent='Done payload ready'; alert(JSON.stringify(p,null,2)); } });
+  draw();
+</script>
+</body>
+</html>
 <!DOCTYPE html>
 <html lang="en">
   <head>
