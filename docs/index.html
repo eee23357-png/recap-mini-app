@@ -48,10 +48,10 @@
         background: linear-gradient(135deg, #1c2333, #09111f);
         border: 2px solid rgba(255,255,255,0.08);
       }
-      .preview-box img {
+      .preview-box video {
         width: 100%;
         height: 100%;
-        object-fit: cover;
+        object-fit: contain;
         display: block;
       }
       .selection {
@@ -61,6 +61,18 @@
         box-shadow: inset 0 0 0 9999px rgba(79,140,255,0.08);
         pointer-events: auto;
         cursor: move;
+        touch-action: none;
+      }
+      .resize-handle {
+        position: absolute;
+        right: -7px;
+        bottom: -7px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: white;
+        border: 2px solid var(--accent);
+        cursor: nwse-resize;
         touch-action: none;
       }
       .subtitle-marker {
@@ -105,21 +117,41 @@
         font-size: 12px;
         color: var(--muted);
       }
+      label {
+        display: grid;
+        grid-template-columns: 110px 1fr 42px;
+        gap: 8px;
+        align-items: center;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      input[type="file"] {
+        width: 100%;
+        color: var(--muted);
+      }
+      input[type="range"] {
+        width: 100%;
+      }
     </style>
   </head>
   <body>
     <div class="wrap">
       <div class="card">
         <h2>Recap Mini App</h2>
-        <p class="meta">Choose blur box and subtitle position directly on the preview.</p>
+        <p class="meta">Load the same video here to preview blur, subtitle position, size, and color.</p>
+
+        <input id="video-file" type="file" accept="video/*" />
 
         <div class="preview-box" id="preview-box">
-          <img id="preview-image" src="https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=900&q=80" alt="preview" />
+          <video id="preview-video" controls muted playsinline></video>
           <div class="selection" id="selection-box"></div>
           <div class="subtitle-marker" id="subtitle-marker">Subtitle</div>
         </div>
 
         <div class="controls">
+          <label>Brightness <input id="brightness" type="range" min="-100" max="100" value="0" /><output id="brightness-value">0</output></label>
+          <label>Contrast <input id="contrast" type="range" min="-100" max="100" value="0" /><output id="contrast-value">0</output></label>
+          <label>Saturation <input id="saturation" type="range" min="-100" max="100" value="0" /><output id="saturation-value">0</output></label>
           <div class="row">
             <button id="center-blur">Center blur</button>
             <button id="bottom-subtitle" class="secondary">Bottom subtitle</button>
@@ -136,16 +168,36 @@
       const previewBox = document.getElementById('preview-box');
       const selectionBox = document.getElementById('selection-box');
       const subtitleMarker = document.getElementById('subtitle-marker');
-      const previewImage = document.getElementById('preview-image');
+      const previewVideo = document.getElementById('preview-video');
+      const videoFile = document.getElementById('video-file');
       const submitBtn = document.getElementById('submit');
       const resetBtn = document.getElementById('reset');
       const centerBlurBtn = document.getElementById('center-blur');
       const bottomSubtitleBtn = document.getElementById('bottom-subtitle');
+      const resizeHandle = document.createElement('div');
+      resizeHandle.className = 'resize-handle';
+      selectionBox.appendChild(resizeHandle);
+      const colorInputs = {
+        brightness: document.getElementById('brightness'),
+        contrast: document.getElementById('contrast'),
+        saturation: document.getElementById('saturation'),
+      };
 
       let box = { x: 0.38, y: 0.42, w: 0.26, h: 0.18 };
       let subtitle = { x: 0.5, y: 0.88 };
       let dragging = false;
       let dragOffset = { x: 0, y: 0 };
+      let resizing = false;
+
+      function renderColor() {
+        const brightness = Number(colorInputs.brightness.value);
+        const contrast = 100 + Number(colorInputs.contrast.value);
+        const saturation = 100 + Number(colorInputs.saturation.value);
+        previewVideo.style.filter = `brightness(${100 + brightness}%) contrast(${contrast}%) saturate(${saturation}%)`;
+        Object.keys(colorInputs).forEach((name) => {
+          document.getElementById(`${name}-value`).value = colorInputs[name].value;
+        });
+      }
 
       function renderSelection() {
         const rect = previewBox.getBoundingClientRect();
@@ -177,6 +229,7 @@
       }
 
       selectionBox.addEventListener('pointerdown', (event) => {
+        if (event.target === resizeHandle) return;
         const rect = previewBox.getBoundingClientRect();
         dragging = true;
         dragOffset = {
@@ -198,6 +251,22 @@
         dragging = false;
       });
 
+      resizeHandle.addEventListener('pointerdown', (event) => {
+        event.stopPropagation();
+        resizing = true;
+        resizeHandle.setPointerCapture(event.pointerId);
+      });
+      resizeHandle.addEventListener('pointermove', (event) => {
+        if (!resizing) return;
+        const rect = previewBox.getBoundingClientRect();
+        box.w = Math.max(0.08, Math.min(1 - box.x, (event.clientX - rect.left) / rect.width - box.x));
+        box.h = Math.max(0.06, Math.min(1 - box.y, (event.clientY - rect.top) / rect.height - box.y));
+        renderSelection();
+      });
+      resizeHandle.addEventListener('pointerup', () => {
+        resizing = false;
+      });
+
       let draggingSubtitle = false;
       subtitleMarker.addEventListener('pointerdown', (event) => {
         draggingSubtitle = true;
@@ -217,15 +286,29 @@
       centerBlurBtn.addEventListener('click', applyCenterBlur);
       bottomSubtitleBtn.addEventListener('click', applyBottomSubtitle);
       resetBtn.addEventListener('click', resetPosition);
+      Object.values(colorInputs).forEach((input) => input.addEventListener('input', renderColor));
+      videoFile.addEventListener('change', () => {
+        const file = videoFile.files && videoFile.files[0];
+        if (!file) return;
+        if (previewVideo.src) URL.revokeObjectURL(previewVideo.src);
+        previewVideo.src = URL.createObjectURL(file);
+        previewVideo.load();
+      });
 
       window.addEventListener('resize', renderSelection);
       renderSelection();
+      renderColor();
 
       submitBtn.addEventListener('click', () => {
         const payload = {
           action: 'miniapp_submit',
           blur: box,
           subtitle: subtitle,
+          color: {
+            brightness: Number(colorInputs.brightness.value),
+            contrast: Number(colorInputs.contrast.value),
+            saturation: Number(colorInputs.saturation.value),
+          },
           ts: Date.now(),
         };
 
